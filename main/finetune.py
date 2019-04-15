@@ -2,7 +2,7 @@ import keras
 from keras import backend as K
 import os
 from keras.callbacks import EarlyStopping
-from keras.layers.core import Dense, Activation
+from keras.layers.core import Dense, Activation, Dropout
 from keras.optimizers import Adam
 from keras.optimizers import RMSprop
 from keras.metrics import categorical_crossentropy
@@ -81,9 +81,10 @@ def myfinetune(num_class, layer_num=-1):
 
     x = conv_model.output
     x = GlobalAveragePooling2D()(x)
-    x = Dense(1024,activation='relu')(x) 
-    x = Dense(512, activation='relu')(x)
     x = Dense(512,activation='relu')(x) 
+    x = Dropout(0.25)(x)
+    x = Dense(256,activation='relu')(x) 
+    x = Dropout(0.25)(x)
     preds=Dense(num_class,activation='softmax')(x) 
     model=Model(inputs=conv_model.input,outputs=preds)
     for i, layer in enumerate(model.layers):
