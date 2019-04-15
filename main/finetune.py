@@ -81,8 +81,8 @@ def myfinetune(num_class, layer_num=-1):
 
     x = conv_model.output
     x = GlobalAveragePooling2D()(x)
-    x = Dense(512,activation='relu')(x) 
-    x = Dropout(0.25)(x)
+    #x = Dense(512,activation='relu')(x) 
+    #x = Dropout(0.25)(x)
     x = Dense(256,activation='relu')(x) 
     x = Dropout(0.25)(x)
     preds=Dense(num_class,activation='softmax')(x) 
