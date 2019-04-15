@@ -97,13 +97,13 @@ def myfinetune(num_class, layer_num=-1):
     return model
 
 
-def train(batch, epochs, num_classes, size):
+def train(batch, epochs, num_classes, size, lay_num):
     if not os.path.exists('model'):
         os.makedirs('model')
 
     trainflow, testflow, trainlen, testlen = generate(batch, size)
 
-    model = myfinetune(num_classes, layer_num=144)
+    model = myfinetune(num_classes, layer_num=lay_num)
 
     # stop after 30 epcohs without any improvement in accuracy
     earlystop = EarlyStopping(monitor='val_acc', patience=30, verbose=1, mode='auto')
@@ -141,6 +141,12 @@ def main(argv):
         "--e",
         default=300,
         help="The number of train iterations.")
+
+    parser.add_argument(
+        "--l",
+        default=144,
+        help="The number of untrainable layers from the start"
+    )
    
     args = parser.parse_args()
 
@@ -148,7 +154,8 @@ def main(argv):
         int(args.b), 
         int(args.e), 
         int(args.c), 
-        int(args.s)
+        int(args.s),
+        int(args.l)
     )
 
 if __name__ == '__main__':
