@@ -64,14 +64,14 @@ class MyMobileNetV2:
         # initial repeat parameters: 1,2,3,4,3,3,1
         layer = self.invertedResidualBlock(layer, 16, (3, 3),  exp_factor=1, strides=1, repeats=1)
         layer = self.invertedResidualBlock(layer, 24, (3, 3),  exp_factor=6, strides=2, repeats=2)
-        layer = self.invertedResidualBlock(layer, 32, (3, 3),  exp_factor=6, strides=2, repeats=2)
-        layer = self.invertedResidualBlock(layer, 64, (3, 3),  exp_factor=6, strides=2, repeats=2)
-        layer = self.invertedResidualBlock(layer, 96, (3, 3),  exp_factor=6, strides=1, repeats=2)
-        layer = self.invertedResidualBlock(layer, 160, (3, 3), exp_factor=6, strides=2, repeats=1)
-        #layer = self.invertedResidualBlock(layer, 320, (3, 3), exp_factor=6, strides=1, repeats=1)
+        layer = self.invertedResidualBlock(layer, 32, (3, 3),  exp_factor=6, strides=2, repeats=3)
+        layer = self.invertedResidualBlock(layer, 64, (3, 3),  exp_factor=6, strides=2, repeats=4)
+        layer = self.invertedResidualBlock(layer, 96, (3, 3),  exp_factor=6, strides=1, repeats=3)
+        layer = self.invertedResidualBlock(layer, 160, (3, 3), exp_factor=6, strides=2, repeats=3)
+        layer = self.invertedResidualBlock(layer, 320, (3, 3), exp_factor=6, strides=1, repeats=1)
 
         # Equivalent to flatten layer, expand to 1280
-        layer = self.convBlock(layer, 320, (1, 1), strides=(1, 1))
+        layer = self.convBlock(layer, 1280, (1, 1), strides=(1, 1))
 
         model = Model(inputs, layer)
         return model
@@ -86,7 +86,7 @@ class MyMobileNetV2:
         layer = GlobalAveragePooling2D()(layer)
         #layer = Dense(512,activation='relu')(layer) 
         #layer = Dropout(0.25)(layer)
-        layer = Dense(128,activation='relu')(layer) 
+        layer = Dense(256, activation='relu')(layer) 
         layer = Dropout(0.25)(layer)
         preds = Dense(num_class,activation='softmalayer')(layer) 
         model = Model(inputs=input,outputs=preds)
