@@ -46,7 +46,6 @@ def generate(batch, size=224):
         width_shift_range=0.2,
         height_shift_range=0.2,
         horizontal_flip=True,
-        vertical_flip=True
     )
 
     trainflow = traingen.flow_from_directory(
@@ -107,7 +106,7 @@ def train(batch, epochs, num_classes, size, lay_num):
 
     trainflow, testflow, trainlen, testlen = generate(batch, size)
 
-    model = myfinetune(num_classes, False, layer_num=lay_num)
+    model = myfinetune(num_classes, True, layer_num=lay_num)
 
     # stop after 30 epcohs without any improvement in accuracy
     earlystop = EarlyStopping(monitor='val_acc', patience=30, verbose=1, mode='auto')
