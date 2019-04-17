@@ -12,8 +12,7 @@ from keras.models import Model
 from keras.applications import imagenet_utils
 from keras.layers import Dense,GlobalAveragePooling2D
 from keras.applications import MobileNet
-from mymobilenet import MobileNetv2Conv
-from mymobilenet import MobileNetv2FC
+from mymobilenet import MyMobileNetV2
 from keras.callbacks import CSVLogger
 from keras.applications.mobilenet import preprocess_input
 from keras.applications.mobilenet_v2 import MobileNetV2
@@ -72,9 +71,14 @@ def generate(batch, size=224):
     return trainflow, testflow, trainlen, testlen
 
 
-def myfinetune(num_class, layer_num=-1):
-    conv_model=MobileNetV2(weights=model_path,include_top=False, input_shape=(224,224,3)) 
-    conv_model.save_weights('model/base.h5')
+def myfinetune(num_class, KerasModel, layer_num=-1):
+    # Using the keras model or not
+    if KerasModel:
+        conv_model=MobileNetV2(weights=model_path,include_top=False, input_shape=(224,224,3)) 
+        conv_model.save_weights('model/base.h5')
+    else:
+        net = MyMobileNetV2()
+        conv_model=net.MobileNetv2Conv()
 
     #conv_model = MobileNetv2Conv((224, 224, 3))
     #conv_model.load_weights('model/mobilenet_v2_weights_tf_dim_ordering_tf_kernels_1.0_224_no_top.h5')
@@ -103,7 +107,7 @@ def train(batch, epochs, num_classes, size, lay_num):
 
     trainflow, testflow, trainlen, testlen = generate(batch, size)
 
-    model = myfinetune(num_classes, layer_num=lay_num)
+    model = myfinetune(num_classes, False, layer_num=lay_num)
 
     # stop after 30 epcohs without any improvement in accuracy
     earlystop = EarlyStopping(monitor='val_acc', patience=30, verbose=1, mode='auto')

@@ -1,132 +1,93 @@
 from keras.models import Model
-from keras.layers import Input, Conv2D, GlobalAveragePooling2D, Dropout
+from keras.layers import Input, Conv2D, GlobalAveragePooling2D, Dropout, Dense
 from keras.layers import Activation, BatchNormalization, add, Reshape
 from keras.utils.vis_utils import plot_model
 from keras.layers import DepthwiseConv2D
-
 from keras import backend as K
 
+class MyMobileNetV2:
+    def __init__(self):
+        # Value is -1 for TF backend
+        self.channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
 
-def _conv_block(inputs, filters, kernel, strides):
-    """Convolution Block
-    This function defines a 2D convolution operation with BN and relu6.
-    # Arguments
-        inputs: Tensor, input tensor of conv layer.
-        filters: Integer, the dimensionality of the output space.
-        kernel: An integer or tuple/list of 2 integers, specifying the
-            width and height of the 2D convolution window.
-        strides: An integer or tuple/list of 2 integers,
-            specifying the strides of the convolution along the width and height.
-            Can be a single integer to specify the same value for
-            all spatial dimensions.
-    # Returns
-        Output tensor.
-    """
+    
+    def convBlock(self, inputs, filters, kernel, strides):
+        # check for chennel axis first, if your are using TF backend , you don't need this.
+        # normal conv2D
+        layer = Conv2D(filters, kernel, padding='same', strides=strides)(inputs)
+        layer = BatchNormalization(axis=self.channel_axis)(layer)
 
-    channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
-
-    x = Conv2D(filters, kernel, padding='same', strides=strides)(inputs)
-    x = BatchNormalization(axis=channel_axis)(x)
-    return Activation('relu')(x)
+        return Activation('relu')(layer)
 
 
-def _bottleneck(inputs, filters, kernel, t, s, r=False):
-    """Bottleneck
-    This function defines a basic bottleneck structure.
-    # Arguments
-        inputs: Tensor, input tensor of conv layer.
-        filters: Integer, the dimensionality of the output space.
-        kernel: An integer or tuple/list of 2 integers, specifying the
-            width and height of the 2D convolution window.
-        t: Integer, expansion factor.
-            t is always applied to the input size.
-        s: An integer or tuple/list of 2 integers,specifying the strides
-            of the convolution along the width and height.Can be a single
-            integer to specify the same value for all spatial dimensions.
-        r: Boolean, Whether to use the residuals.
-    # Returns
-        Output tensor.
-    """
+    def bottleneckBlock(self, inputs, filters, kernel, exp_factor, strides, res=False):
+        # expand channel shape
+        expanded = K.int_shape(inputs)[self.channel_axis] * exp_factor
+        # nomal convolution, dpeth = channels * ef
+        # original W * H * M => W * H * (M * ef), (M * ef) number of (1 * 1 * M) filters
+        layer = self.convBlock(inputs, expanded, (1, 1), (1, 1))
 
-    channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
-    tchannel = K.int_shape(inputs)[channel_axis] * t
+        # depthwise conv, depth = 1
+        # original W * H * M => W * H * M, M number of (k * k * 1) filters
+        layer = DepthwiseConv2D(kernel, strides=(strides, strides), depth_multiplier=1, padding='same')(layer)
+        layer = BatchNormalization(axis=self.channel_axis)(layer)
+        layer = Activation('relu')(layer)
 
-    x = _conv_block(inputs, tchannel, (1, 1), (1, 1))
+        # Pointwise convolution, dpeth = filters (N)
+        # original W * H * M => W * H * N, N number of (1 * 1 * M) filters
+        layer = Conv2D(filters, (1, 1), strides=(1, 1), padding='same')(layer)
+        layer = BatchNormalization(axis=self.channel_axis)(layer)
+        # No relu activation here
+        # Or you can try self.convBlock(layer, filters, (1, 1), (1, 1), )
 
-    x = DepthwiseConv2D(kernel, strides=(s, s), depth_multiplier=1, padding='same')(x)
-    x = BatchNormalization(axis=channel_axis)(x)
-    x = Activation('relu')(x)
+        # H(x) = F(x) (output_layer) + x (input), ensured same shape
+        if res:
+            layer = add([layer, inputs])
+        return layer
 
-    x = Conv2D(filters, (1, 1), strides=(1, 1), padding='same')(x)
-    x = BatchNormalization(axis=channel_axis)(x)
+    def invertedResidualBlock(self, inputs, filters, kernel, exp_factor, strides, repeats=1):
+        '''
+        exp_factor: expansion factor for the channel
+        repeats: for how many times should the residual block of stride 1 (same output) be repeated
+        '''
 
-    if r:
-        x = add([x, inputs])
-    return x
-
-
-def _inverted_residual_block(inputs, filters, kernel, t, strides, n):
-    """Inverted Residual Block
-    This function defines a sequence of 1 or more identical layers.
-    # Arguments
-        inputs: Tensor, input tensor of conv layer.
-        filters: Integer, the dimensionality of the output space.
-        kernel: An integer or tuple/list of 2 integers, specifying the
-            width and height of the 2D convolution window.
-        t: Integer, expansion factor.
-            t is always applied to the input size.
-        s: An integer or tuple/list of 2 integers,specifying the strides
-            of the convolution along the width and height.Can be a single
-            integer to specify the same value for all spatial dimensions.
-        n: Integer, layer repeat times.
-    # Returns
-        Output tensor.
-    """
-
-    x = _bottleneck(inputs, filters, kernel, t, strides)
-
-    for i in range(1, n):
-        x = _bottleneck(x, filters, kernel, t, 1, True)
-
-    return x
+        # stides not equal to 1
+        layer = self.bottleneckBlock(inputs, filters, kernel, exp_factor, strides)
+        for i in range(1, repeats):
+            layer = self.bottleneckBlock(layer, filters, kernel, exp_factor, 1, True)
+        return layer
 
 
-def MobileNetv2Conv(input_shape):
-    """MobileNetv2
-    This function defines a MobileNetv2 architectures.
-    # Arguments
-        input_shape: An integer or tuple/list of 3 integers, shape
-            of input tensor.
-        k: Integer, number of classes.
-    # Returns
-        MobileNetv2 model.
-    """
+    def MobileNetv2Conv(self, input_shape=(224,224,3)):
+        inputs = Input(shape=input_shape)
+        layer = self.convBlock(inputs, 32, (3, 3), strides=(2, 2))
+        # initial repeat parameters: 1,2,3,4,3,3,1
+        layer = self.invertedResidualBlock(layer, 16, (3, 3),  exp_factor=1, strides=1, repeats=1)
+        layer = self.invertedResidualBlock(layer, 24, (3, 3),  exp_factor=6, strides=2, repeats=2)
+        layer = self.invertedResidualBlock(layer, 32, (3, 3),  exp_factor=6, strides=2, repeats=2)
+        layer = self.invertedResidualBlock(layer, 64, (3, 3),  exp_factor=6, strides=2, repeats=2)
+        layer = self.invertedResidualBlock(layer, 96, (3, 3),  exp_factor=6, strides=1, repeats=2)
+        layer = self.invertedResidualBlock(layer, 160, (3, 3), exp_factor=6, strides=2, repeats=1)
+        #layer = self.invertedResidualBlock(layer, 320, (3, 3), exp_factor=6, strides=1, repeats=1)
 
-    inputs = Input(shape=input_shape)
-    x = _conv_block(inputs, 32, (3, 3), strides=(2, 2))
+        # Equivalent to flatten layer, expand to 1280
+        layer = self.convBlock(layer, 320, (1, 1), strides=(1, 1))
 
-    x = _inverted_residual_block(x, 16, (3, 3), t=1, strides=1, n=1)
-    x = _inverted_residual_block(x, 24, (3, 3), t=6, strides=2, n=2)
-    x = _inverted_residual_block(x, 32, (3, 3), t=6, strides=2, n=3)
-    x = _inverted_residual_block(x, 64, (3, 3), t=6, strides=2, n=4)
-    x = _inverted_residual_block(x, 96, (3, 3), t=6, strides=1, n=3)
-    x = _inverted_residual_block(x, 160, (3, 3), t=6, strides=2, n=3)
-    x = _inverted_residual_block(x, 320, (3, 3), t=6, strides=1, n=1)
-    model = Model(inputs, x)
-    return model
+        model = Model(inputs, layer)
+        return model
 
-def MobileNetv2FC(x, k):
-    inputs = Input(shpe=x.shape)
-    x = _conv_block(x, 1280, (1, 1), strides=(1, 1))
-    x = GlobalAveragePooling2D()(x)
-    x = Reshape((1, 1, 1280))(x)
-    x = Dropout(0.3, name='Dropout')(x)
-    x = Conv2D(k, (1, 1), padding='same')(x)
-
-    x = Activation('softmax', name='softmax')(x)
-    output = Reshape((k,))(x)
-
-    model = Model(inputs, output)
-    plot_model(model, to_file='images/MobileNetv2.png', show_shapes=True)
-
-    return model
+    
+    def MobileNetv2FC(self, layer, num_class):
+        '''
+            FC layers, may not be used, you can write your own Fully connected layers in 
+            fineune.py
+        '''
+        inputs = Input(shape=layer.shape)
+        layer = GlobalAveragePooling2D()(layer)
+        #layer = Dense(512,activation='relu')(layer) 
+        #layer = Dropout(0.25)(layer)
+        layer = Dense(128,activation='relu')(layer) 
+        layer = Dropout(0.25)(layer)
+        preds = Dense(num_class,activation='softmalayer')(layer) 
+        model = Model(inputs=input,outputs=preds)
+        return model
