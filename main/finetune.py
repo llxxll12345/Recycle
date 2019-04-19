@@ -10,7 +10,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.preprocessing import image
 from keras.models import Model
 from keras.applications import imagenet_utils
-from keras.layers import Dense,GlobalAveragePooling2D
+from keras.layers import Dense,GlobalAveragePooling2D, Conv2D, BatchNormalization
 from keras.applications import MobileNet
 from mymobilenet import MyMobileNetV2
 from keras.callbacks import CSVLogger
@@ -82,7 +82,16 @@ def myfinetune(num_class, KerasModel, layer_num=-1):
     #conv_model = MobileNetv2Conv((224, 224, 3))
     #conv_model.load_weights('model/mobilenet_v2_weights_tf_dim_ordering_tf_kernels_1.0_224_no_top.h5')
 
+
+    for i in range(144, 155):
+        conv_model.layers.pop()
     x = conv_model.output
+
+    channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
+    x = Conv2D(1280, (1, 1), padding='same', strides=(1, 1))(x)
+    x = BatchNormalization(axis=channel_axis)(x)
+
+    x = Activation('relu')(x)
     x = GlobalAveragePooling2D()(x)
     #x = Dense(512,activation='relu')(x) 
     #x = Dropout(0.25)(x)
@@ -100,18 +109,18 @@ def myfinetune(num_class, KerasModel, layer_num=-1):
     return model
 
 
-def train(batch, epochs, num_classes, size, lay_num):
+def train(batch, epochs, num_classes, size, lay_num, using_keras):
     if not os.path.exists('model'):
         os.makedirs('model')
 
     trainflow, testflow, trainlen, testlen = generate(batch, size)
 
-    model = myfinetune(num_classes, True, layer_num=lay_num)
+    model = myfinetune(num_classes, using_keras, layer_num=lay_num)
 
     # stop after 30 epcohs without any improvement in accuracy
     earlystop = EarlyStopping(monitor='val_acc', patience=30, verbose=1, mode='auto')
 
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(), metrics=['accuracy'], )
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(), metrics=['accuracy'])
 
     csv_logger = CSVLogger('result.log')
 
@@ -150,6 +159,12 @@ def main(argv):
         default=144,
         help="The number of untrainable layers from the start"
     )
+
+    parser.add_argument(
+        "--k",
+        default=1,
+        help="Using keras model or not"
+    )
    
     args = parser.parse_args()
 
@@ -158,7 +173,8 @@ def main(argv):
         int(args.e), 
         int(args.c), 
         int(args.s),
-        int(args.l)
+        int(args.l),
+        int(args.k)
     )
 
 if __name__ == '__main__':
