@@ -1,7 +1,7 @@
 import keras
 from keras import backend as K
 import os
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, LearningRateScheduler
 from keras.layers.core import Dense, Activation, Dropout
 from keras.optimizers import Adam
 from keras.optimizers import RMSprop
@@ -20,6 +20,7 @@ import numpy as np
 from IPython.display import Image
 from keras.optimizers import Adam
 import sys
+import math
 import argparse
 
 model_path = "model/mobilenet_v2_weights_tf_dim_ordering_tf_kernels_1.0_224_no_top.h5"
@@ -69,6 +70,13 @@ def generate(batch, size=224):
     print(trainlen, testlen)
     return trainflow, testflow, trainlen, testlen
 
+def step_decay(epoch):
+    initial_lrate = 0.1
+    drop = 0.5
+    epochs_drop = 10.0
+    lrate = initial_lrate * math.pow(drop,  
+           math.floor((1+epoch)/epochs_drop))
+    return lrate
 
 def myfinetune(num_class, KerasModel, layer_num=-1):
     # Using the keras model or not
@@ -120,6 +128,8 @@ def train(batch, epochs, num_classes, size, lay_num, using_keras):
     # stop after 30 epcohs without any improvement in accuracy
     earlystop = EarlyStopping(monitor='val_acc', patience=30, verbose=1, mode='auto')
 
+    lrate = LearningRateScheduler(step_decay)
+
     model.compile(loss='categorical_crossentropy', optimizer=Adam(), metrics=['accuracy'])
 
     csv_logger = CSVLogger('result.log')
@@ -130,7 +140,7 @@ def train(batch, epochs, num_classes, size, lay_num, using_keras):
         steps_per_epoch=trainlen // batch,
         validation_steps=testlen // batch,
         epochs=epochs,
-        callbacks=[earlystop, csv_logger]
+        callbacks=[earlystop, csv_logger, lrate]
     )
     model.save_weights('model/weights.h5')
 
