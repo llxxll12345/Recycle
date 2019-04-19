@@ -87,7 +87,7 @@ def myfinetune(num_class, KerasModel, layer_num=-1):
     #x = Dense(512,activation='relu')(x) 
     #x = Dropout(0.25)(x)
     x = Dense(256,activation='relu')(x) 
-    x = Dropout(0.25)(x)
+    x = Dropout(0.5)(x)
     preds=Dense(num_class,activation='softmax')(x) 
     model=Model(inputs=conv_model.input,outputs=preds)
     for i, layer in enumerate(model.layers):
