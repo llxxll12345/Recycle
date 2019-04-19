@@ -71,7 +71,7 @@ def generate(batch, size=224):
     return trainflow, testflow, trainlen, testlen
 
 def step_decay(epoch):
-    initial_lrate = 0.1
+    initial_lrate = 0.3
     drop = 0.5
     epochs_drop = 10.0
     lrate = initial_lrate * math.pow(drop,  
@@ -96,7 +96,11 @@ def myfinetune(num_class, KerasModel, layer_num=-1):
     x = conv_model.output
 
     channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
-    x = Conv2D(1280, (1, 1), padding='same', strides=(1, 1))(x)
+    x = Conv2D(1280, (3, 3), padding='same', strides=(2, 2))(x)
+    x = BatchNormalization(axis=channel_axis)(x)
+
+    channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
+    x = Conv2D(640, (1, 1), padding='same', strides=(1, 1))(x)
     x = BatchNormalization(axis=channel_axis)(x)
 
     x = Activation('relu')(x)
@@ -140,7 +144,7 @@ def train(batch, epochs, num_classes, size, lay_num, using_keras):
         steps_per_epoch=trainlen // batch,
         validation_steps=testlen // batch,
         epochs=epochs,
-        callbacks=[earlystop, csv_logger, lrate]
+        callbacks=[earlystop, csv_logger]
     )
     model.save_weights('model/weights.h5')
 
