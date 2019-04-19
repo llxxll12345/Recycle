@@ -55,7 +55,7 @@ def generate(batch, size=224):
         class_mode='categorical'
     )
 
-    testgen = ImageDataGenerator(rescale=1. / 255)
+    testgen = ImageDataGenerator(rescale=1.0 / 255)
 
     testflow = testgen.flow_from_directory(
         test_path,
