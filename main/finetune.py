@@ -121,6 +121,11 @@ def myfinetune(num_class, KerasModel, layer_num=-1):
     return model
 
 
+def validate_result(num_class):
+    model = myfinetune(num_class, 1, 0)
+    model.load_weights('result/weights.h5')
+     
+
 def train(batch, epochs, num_classes, size, lay_num, using_keras):
     if not os.path.exists('model'):
         os.makedirs('model')
