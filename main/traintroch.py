@@ -139,7 +139,7 @@ for param in model.parameters():
 fc = nn.Sequential(OrderedDict([
     ('fc1', nn.Linear(512, 100)),
     ('relu', nn.ReLU()),
-    ('fc2', nn.Linear(100, 2)),
+    ('fc2', nn.Linear(100, 4)),
     ('output', nn.LogSoftmax(dim=1))
 ]))
 
@@ -156,22 +156,26 @@ def train(model, trainloader, testloader, criterion, optimizer, epochs = 5):
         correct_items_train = 0
         correct_items_val = 0
 
-        for images, labellist in trainloader:
+        for i, data in enumerate(trainloader, 0):
+            images, labellist = data
             #inputs, labels = images.to(device), labels.to(device)
 
             optimizer.zero_grad()
-            img = model(images)
+            outputs = model(images)
 
             #train accuracy
-            prediction = torch.argmax(img, dim=1)
-            label = torch.argmax(labellist, dim=1)
-            if prediction == label:
-                correct_items_train += 1
+            _, prediction = torch.max(outputs, 1)
 
-            loss = criterion(img, labellist)
-            running_loss+=loss
+            correct_items_train += (prediction == labellist).sum().item()
+
+            loss = criterion(outputs, labellist)
+            
             loss.backward()
             optimizer.step()
+            running_loss += loss
+
+            if i % 10:
+                print("+\r")
 
         print("Epoch : {}/{} ".format(e+1,epochs), 
         "Training Loss: {:.6f} ".format(running_loss/train_len),
@@ -179,11 +183,9 @@ def train(model, trainloader, testloader, criterion, optimizer, epochs = 5):
 
         # validation accuracy
         for images, labes in testloader: 
-            output = model(x)
-            prediction = torch.argmax(img, dim=1)
-            label = torch.argmax(labellist, dim=1)
-            if prediction == label:
-                correct_items_val += 1
+            output = model(images)
+            _, prediction = torch.max(outputs, 1)
+            correct_items_val += (prediction == labellist).sum().item()
 
         print("Validation Accuracy: {:6f} \n".format(correct_items_val/val_len))
 
@@ -209,12 +211,12 @@ model.eval()
 #fn_list = []
 #pred_list = []
 correct_items_test = 0
-for img, labellist in test_loader:
+for imgs, labellist in test_loader:
     with torch.no_grad():
         #x = x.to(device)
-        output = model(img)
-        prediction = torch.argmax(output, dim=1)
-        label = torch.argmax(labellist, dim=1)
+        outputs = model(imgs)
+        _, prediction = torch.max(outputs, 1)
+        correct_items_test += (prediction == labellist).sum().item()
         if prediction == label:
             correct_items_test += 1
         #fn_list += [n[:-4] for n in fn]
